@@ -20,6 +20,10 @@ const messageSchema = new mongoose.Schema({
    },
    imgUrl:{
     type:String,
+   } ,
+   senderInfor:{
+    type: Object,
+    
    }
 
 } , {

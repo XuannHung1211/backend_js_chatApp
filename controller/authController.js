@@ -38,7 +38,7 @@ const SignUp = async (req, res) => {
 
 const SignIn = async (req, res) => {
 
-    const ACCESS_TOKEN_TTL = 30 * 60 * 1000
+    const ACCESS_TOKEN_TTL = 60 * 60 * 1000
     const REFRESH_TOKEN_TTL = 60 * 60 * 24 * 14 * 1000 //14 ngay
 
     try {

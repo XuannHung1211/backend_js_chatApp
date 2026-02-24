@@ -1,6 +1,7 @@
 import Conversation from "../model/conversation.js";
 import Message from "../model/message.js";
 import { updateConversationAfterCreateMessage } from "../utils/messageHelper.js";
+import User from "../model/user.js"
 
 const directMessage = async (req, res) => {
   try {
@@ -11,8 +12,11 @@ const directMessage = async (req, res) => {
     if (!content)
       return res.status(400).json({ message: "Thiếu nội dung" });
 
-    let conversation;
-
+    let conversation
+    let senderInfor 
+    if(senderId){
+        senderInfor =  await User.findById(senderId);
+    }
     // 🟢 Nếu đã có conversationId (chat đã tồn tại)
     if (conversationId) {
       conversation = await Conversation.findById(conversationId);
@@ -45,13 +49,16 @@ const directMessage = async (req, res) => {
     const message = await Message.create({
       conversationId: conversation._id,
       senderId,
-      content
+      content ,
+      senderInfor
+     
     });
 
     updateConversationAfterCreateMessage(
       conversation,
       message,
-      senderId
+      senderId ,
+      senderInfor
     );
 
     await conversation.save();
@@ -69,21 +76,29 @@ const groupMessage = async (req, res) => {
     const { content, conversationId } = req.body
     const senderId = req.user._id
     const conversation = req.conversation
+    
 
     if (!content) {
       return res.status(400).json({ message: "Thiếu nội dung" })
     }
 
+    let senderInfor 
+    if(senderId){
+        senderInfor =  await User.findById(senderId);
+    }
+
     const message = await Message.create({
       conversationId,
       senderId,
-      content
+      content ,
+      senderInfor
     })
 
     updateConversationAfterCreateMessage(
       conversation,
       message,
-      senderId
+      senderId ,
+      senderInfor
     )
 
     await conversation.save()
