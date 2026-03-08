@@ -15,6 +15,7 @@ import { Server } from "socket.io"
 import { socketMiddlewareIo } from './middlewares/socketMiddleware.js'
 import User from "./model/user.js"
 
+
 dotenv.config()
 const app = express()
 
@@ -29,6 +30,8 @@ app.use("/api/message", authMiddleware, messageRouter)
 app.use("/api/conversation", authMiddleware, conversationRouter)
 app.use("/api", checkCookieRouter)
 
+
+
 const server = createServer(app)
 const io = new Server(server, {
   cors: { origin: "http://localhost:3000", credentials: true }
@@ -42,32 +45,48 @@ io.on("connection", (socket) => {
   // 1. Khi FE mở chat, bắt buộc phải Join Room
   socket.on("join-conversation", (conversationId) => {
     socket.join(conversationId)
+    console.log("joined..")
   })
 
-  // 2. Sửa lại event "send-messsage-to-friend" của bạn
-  socket.on("send-messsage-to-friend", (data) => {
-    // Lấy đúng dữ liệu bạn gửi từ FooterWindowChat
-    const { conversationId, content, tempId , displayName } = data
 
-   
 
-    const fullMessage = {
-      _id: Date.now().toString(), // Tạm thời dùng ID này, thực tế sẽ lấy từ DB
-      conversationId,
-      content,
-      senderId: socket.userId,
-      createdAt: new Date(),
-      temp: false,
-      tempId: tempId ,
-      displayName :displayName
-      // Gửi lại để FE xóa tin nhắn tạm
+socket.on("send-message", async (data) => {
+
+  const { conversationId, content, tempId } = data
+
+  // lấy thông tin sender từ DB
+  const user = await User.findById(socket.userId)
+    .select("_id displayName avatarUrl username")
+
+  const fullMessage = {
+    _id: Date.now().toString(),
+    conversationId,
+    content,
+    senderId: socket.userId,
+    createdAt: new Date(),
+    temp: false,
+    tempId,
+
+    senderInfor: {
+      _id: user._id,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      username: user.username
     }
+  }
 
-    console.log(socket.userId)
-   
-    // Gửi cho người khác trong phòng
-    socket.to(conversationId).emit("receive-message", fullMessage)
+  console.log("Sender:", socket.userId)
+
+  // gửi realtime message
+  io.to(conversationId).emit("receive-message", fullMessage)
+
+  // update last message
+  io.to(conversationId).emit("last-message", {
+    conversationId,
+    message: fullMessage
   })
+
+})
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected")

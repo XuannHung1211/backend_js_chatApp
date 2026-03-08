@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 
 
-
 const participantSchema = new mongoose.Schema({
     userId:{
         type:mongoose.Schema.Types.ObjectId,

@@ -1,5 +1,6 @@
 import Friend from "../model/friend.js"
 import friendRequest from "../model/friendRequest.js"
+import Conversation from "../model/conversation.js"
 import User from "../model/user.js"
 
 
@@ -7,20 +8,22 @@ import User from "../model/user.js"
 const sendFriend = async (req , res) => {
     try {
         
-        const {to , message , from } = req.body
+        const {to , message } = req.body
 
-        if(from === to) return res.status(400).json({message:"khong tu gui loi moi cho chinh minh"})
+        if(req.user._id === to) return res.status(400).json({message:"khong tu gui loi moi cho chinh minh"})
 
         const UserExist = await User.exists({_id:to})
 
         if(!UserExist) return res.status(404).json({message:"Nguoi dung khong ton tai"})
 
-        let userA = from.toString()
+        let userA = req.user._id
         let userB = to.toString()
 
         if(userA > userB){
             [userA , userB] = [userB , userA]
         }
+
+        const from = req.user._id
 
         const [alreadyFriend , existsRequest] = await Promise.all([
             Friend.findOne({userA , userB}),
@@ -49,44 +52,71 @@ const sendFriend = async (req , res) => {
     }
 }
 
+
 const acceptFriendRequest = async (req , res) => {
      try {
         const {requestId} = req.params
         const userId = req.user._id
        
         const request = await friendRequest.findById(requestId)
-        console.log("request" , request)
-         
 
-        if(!request) return res.status(404).json({message:"Khong ton tai loi moi kb"})
+        if(!request) 
+            return res.status(404).json({message:"Khong ton tai loi moi kb"})
 
-        if(request.to.toString() !== userId.toString()){
-             
+        if(request.to.toString() !== userId.toString()){      
             return res.status(403).json({message:"Ban khong co quyen chap nhan loi moi nay"})
         }
 
+        // ✅ Tạo quan hệ bạn bè
         const friend = await Friend.create({
-           userA:request.from,
-           userB:request.to
+           userA: request.from,
+           userB: request.to
         })
         
         await friendRequest.findByIdAndDelete(requestId)
 
-        const from = await User.findById(request.from).select('_id firstName lastName').lean()
-
-        return res.status(200).json({message:"Chap nhan ket ban thanh cong" ,
-            newFriend:{
-                _id:from._id,
-                firstName:from?.firstName,
-                lastName:from?.lastName
+        // ✅ TẠO CONVERSATION DIRECT (nếu chưa tồn tại)
+        let conversation = await Conversation.findOne({
+            type: "direct",
+            "participants.userId": { 
+                $all: [request.from, request.to] 
             }
+        })
+
+        if(!conversation){
+            conversation = new Conversation({
+                type: "direct",
+                participants: [
+                    { userId: request.from },
+                    { userId: request.to }
+                ],
+                lastMessageAt: new Date()
+            })
+
+            await conversation.save()
+        }
+
+        const from = await User.findById(request.from)
+            .select('_id username displayName avatarUrl')
+            .lean()
+
+        return res.status(200).json({
+            message:"Chap nhan ket ban thanh cong",
+            newFriend:{
+                _id: from._id,
+                username: from?.username,
+                displayName: from?.displayName,
+                avatarUrl: from?.avatarUrl
+            },
+            conversationId: conversation._id   // gửi về để frontend mở chat luôn nếu muốn
         })
 
     } catch (error) {
         console.log("Loi khong the chap nhan ket ban" , error)
-        return res.status(500).json({message:"Loi khong the gui ket ban"})
+        return res.status(500).json({message:"Loi khong the chap nhan ket ban"})
     }
 }
+
 
 const declineFriendRequest = async (req , res) => {
      try {
@@ -113,7 +143,7 @@ const declineFriendRequest = async (req , res) => {
 
 const getAllListFriend = async (req , res) => {
      try {
-        const userId = req.user.userId
+        const userId = req.user._id
 
         const friends = await Friend.find({
             $or:[
@@ -122,8 +152,8 @@ const getAllListFriend = async (req , res) => {
             ]
             
         })
-        .populate("userA" , "_id firstName lastName avatarUrl" )
-        .populate("userA" , "_id firstName lastName avatarUrl" )
+        .populate("userA" , "_id username displayName avatarUrl" )
+        .populate("userB" , "_id username displayName avatarUrl" )
         .lean()
 
 
@@ -145,16 +175,17 @@ const getAllListFriend = async (req , res) => {
 const getListFriendRequest = async (req , res) => {
      try {
         
-        const userId = req.user.userId
+        const userId = req.user._id
 
         const requests = await friendRequest.find({
             to:userId,
             
-
         })
-        .populate("from" , "_id firstName lastName avatarUrl")
+        .populate("from" , "_id username displayName avatarUrl")
         .lean()
 
+        console.log(requests)
+        console.log(userId)
         return res.status(200).json(requests)
 
     } catch (error) {
